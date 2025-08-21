@@ -122,6 +122,13 @@ defmodule Tailwind do
   end
 
   @doc """
+  Returns whether to build Tailwind from source instead of downloading binaries.
+  """
+  def build_from_source? do
+    Application.get_env(:tailwind, :build_from_source, false)
+  end
+
+  @doc """
   Returns the configuration for the given profile.
 
   Returns nil if the profile does not exist.
@@ -231,8 +238,21 @@ defmodule Tailwind do
 
   @doc """
   Installs tailwind with `configured_version/0`.
+
+  If `build_from_source` is enabled in configuration, builds from source instead of downloading binaries.
   """
   def install(base_url \\ default_base_url()) do
+    if build_from_source?() do
+      install_from_source()
+    else
+      install_from_binary(base_url)
+    end
+  end
+
+  @doc """
+  Installs Tailwind from pre-built binary.
+  """
+  def install_from_binary(base_url) do
     url = get_url(base_url)
     bin_path = bin_path()
     binary = fetch_body!(url)
@@ -248,9 +268,55 @@ defmodule Tailwind do
     File.chmod(bin_path, 0o755)
   end
 
+    @doc """
+  Installs Tailwind by building from source.
+  """
+  def install_from_source do
+    target = configured_target()
+    version = configured_version()
+
+    case Tailwind.SourceBuilder.build_for_target(target, version) do
+      {:ok, source_binary_path, source_dir} ->
+        bin_path = bin_path()
+
+        # Ensure the target directory exists
+        target_dir = Path.dirname(bin_path)
+        File.mkdir_p!(target_dir)
+
+        Logger.debug("Installing binary from #{source_binary_path} to #{bin_path}")
+
+        # Copy the built binary to the target location
+        File.cp!(source_binary_path, bin_path)
+        File.chmod(bin_path, 0o755)
+
+        # Now cleanup the source directory
+        Tailwind.SourceBuilder.cleanup_source(source_dir)
+
+        Logger.info("Successfully installed Tailwind built from source to #{bin_path}")
+        :ok
+
+      {:error, reason} ->
+        raise """
+        Failed to build Tailwind from source: #{reason}
+
+        Please ensure:
+        1. Rust and Cargo are installed
+        2. Git is available for cloning source
+        3. You have sufficient disk space
+
+        Alternatively, disable source building with:
+            config :tailwind, build_from_source: false
+        """
+    end
+  end
+
   # Available targets:
   #  tailwindcss-freebsd-arm64
   #  tailwindcss-freebsd-x64
+  #  tailwindcss-openbsd-arm64
+  #  tailwindcss-openbsd-x64
+  #  tailwindcss-netbsd-arm64
+  #  tailwindcss-netbsd-x64
   #  tailwindcss-linux-arm64
   #  tailwindcss-linux-x64
   #  tailwindcss-linux-armv7
@@ -283,6 +349,18 @@ defmodule Tailwind do
 
       {{:unix, :freebsd}, arch, _abi, 64} when arch in ~w(x86_64 amd64) ->
         "freebsd-x64"
+
+      {{:unix, :openbsd}, "aarch64", _abi, 64} ->
+        "openbsd-arm64"
+
+      {{:unix, :openbsd}, arch, _abi, 64} when arch in ~w(x86_64 amd64) ->
+        "openbsd-x64"
+
+      {{:unix, :netbsd}, "aarch64", _abi, 64} ->
+        "netbsd-arm64"
+
+      {{:unix, :netbsd}, arch, _abi, 64} when arch in ~w(x86_64 amd64) ->
+        "netbsd-x64"
 
       {{:unix, :linux}, "aarch64", abi, 64} ->
         "linux-arm64" <> maybe_add_abi_suffix(abi)

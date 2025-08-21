@@ -68,6 +68,60 @@ $ mix tailwind default
 The executable is kept at `_build/tailwind-TARGET`.
 Where `TARGET` is your system target architecture.
 
+## Building from Source
+
+For platforms where pre-built binaries are not available (such as FreeBSD ARM64, OpenBSD, NetBSD, or custom architectures), you can build Tailwind CSS from source:
+
+```elixir
+config :tailwind,
+  version: "4.1.12",
+  build_from_source: true,  # Enable source building
+  default: [
+    args: ~w(
+      --input=assets/css/app.css
+      --output=../priv/static/assets/app.css
+    ),
+    cd: Path.expand("../assets", __DIR__)
+  ]
+```
+
+### Requirements for Source Building
+
+- **Rust and Cargo**: Must be installed on the system
+- **Git**: Available for cloning source code
+- **Sufficient disk space**: For building and temporary files
+- **Internet connection**: For cloning source from GitHub
+
+### Installing Rust
+
+```bash
+# Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# Verify installation
+cargo --version
+```
+
+### Supported Platforms
+
+The source building approach supports all platforms where Rust can compile, including:
+- FreeBSD (ARM64, x64)
+- OpenBSD (ARM64, x64)
+- NetBSD (ARM64, x64)
+- Linux (ARM64, x64, ARMv7)
+- macOS (ARM64, x64)
+- Windows (x64)
+
+### Fallback Behavior
+
+When `build_from_source: true` is set:
+1. **Source building is attempted first**
+2. **If source building fails**: Clear error message with troubleshooting steps
+3. **No automatic fallback**: Explicit control over build strategy
+
+For automatic fallback behavior, you can implement custom logic in your application.
+
 ## Profiles
 
 The first argument to `tailwind` is the execution profile.
